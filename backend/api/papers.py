@@ -1,10 +1,13 @@
 """Papers API endpoints."""
 from typing import Optional, List
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 
 from ..database import get_session, Paper, ProjectPaper
+from ..integrations.pubmed_client import PubMedClient
+from ..services.paper_download import download_papers
 from ..llm.summarizer import summarize_abstract
+from ..llm.query_optimizer import optimize_query
 
 router = APIRouter()
 
@@ -12,10 +15,11 @@ router = APIRouter()
 class PaperSearch(BaseModel):
     query: str
     max_results: int = 50
+    optimize_query: bool = True
 
 
 class PaperDownload(BaseModel):
-    pmids: List[str]
+    papers: List[dict]  # List of paper metadata with pmid, pmc_id, etc.
     project_id: Optional[str] = None
 
 
@@ -43,33 +47,137 @@ class PaperResponse(BaseModel):
 
 @router.post("/search")
 async def search_papers(search: PaperSearch):
-    """Search papers in PubMed/PMC.
+    """Search papers in PubMed/PMC."""
+    client = PubMedClient()
 
-    Note: This is a placeholder. Actual PubMed API integration
-    will be implemented in Phase 2.
-    """
-    # TODO: Implement actual PubMed API search
-    # For now, return mock data structure
-    return {
-        "query": search.query,
-        "total_results": 0,
-        "results": [],
-        "message": "PubMed検索はPhase 2で実装予定です"
-    }
+    try:
+        # Optimize query if requested
+        query = search.query
+        optimized_query = None
+        if search.optimize_query:
+            optimized_query = await optimize_query(search.query)
+            query = optimized_query
+
+        # Search PubMed
+        search_result = await client.search(query, search.max_results)
+
+        if "error" in search_result:
+            return {
+                "query": search.query,
+                "optimized_query": optimized_query,
+                "total_results": 0,
+                "results": [],
+                "error": search_result["error"]
+            }
+
+        # Fetch details for found PMIDs
+        pmids = search_result.get("pmids", [])
+        if not pmids:
+            return {
+                "query": search.query,
+                "optimized_query": optimized_query,
+                "total_results": 0,
+                "results": [],
+                "message": "検索結果が見つかりませんでした"
+            }
+
+        details = await client.fetch_details(pmids)
+
+        # Generate summaries for abstracts (first 10 only for speed)
+        results_with_summary = []
+        for i, paper in enumerate(details):
+            if "error" in paper:
+                continue
+
+            summary = ""
+            if i < 10 and paper.get("abstract"):
+                try:
+                    summary = await summarize_abstract(paper["abstract"])
+                except Exception:
+                    summary = ""
+
+            results_with_summary.append({
+                **paper,
+                "summary": summary,
+                "can_download": paper.get("has_free_fulltext", False)
+            })
+
+        return {
+            "query": search.query,
+            "optimized_query": optimized_query,
+            "total_results": search_result.get("total_count", len(results_with_summary)),
+            "returned_count": len(results_with_summary),
+            "results": results_with_summary
+        }
+
+    finally:
+        await client.close()
 
 
 @router.post("/download")
-async def download_papers(download: PaperDownload):
-    """Download papers by PMID.
+async def download_papers_endpoint(download: PaperDownload):
+    """Download papers by PMID."""
+    # Filter papers with PMC IDs (free access)
+    downloadable = [p for p in download.papers if p.get("pmc_id")]
 
-    Note: This is a placeholder. Actual download logic
-    will be implemented in Phase 2.
-    """
+    if not downloadable:
+        return {
+            "requested": len(download.papers),
+            "downloaded": [],
+            "failed": [{"error": "ダウンロード可能な論文がありません（PMC IDが必要です）"}],
+            "message": "フリーアクセスの論文のみダウンロード可能です"
+        }
+
+    # Download papers
+    result = await download_papers(downloadable)
+
+    # Save to database
+    session = get_session()
+    try:
+        for item in result["downloaded"]:
+            paper_data = next((p for p in download.papers if p.get("pmc_id") == item["pmc_id"]), {})
+
+            existing = session.query(Paper).filter(Paper.pmid == paper_data.get("pmid")).first()
+            if existing:
+                existing.pdf_path = item["pdf_path"]
+                existing.metadata_path = item["metadata_path"]
+                existing.page_count = item["page_count"]
+            else:
+                new_paper = Paper(
+                    pmid=paper_data.get("pmid", ""),
+                    pmc_id=item["pmc_id"],
+                    title=paper_data.get("title", ""),
+                    authors=paper_data.get("authors"),
+                    journal=paper_data.get("journal"),
+                    year=paper_data.get("year"),
+                    abstract=paper_data.get("abstract"),
+                    summary=paper_data.get("summary"),
+                    pdf_path=item["pdf_path"],
+                    metadata_path=item["metadata_path"],
+                    page_count=item["page_count"]
+                )
+                session.add(new_paper)
+
+            # Link to project if specified
+            if download.project_id and paper_data.get("pmid"):
+                existing_link = session.query(ProjectPaper).filter(
+                    ProjectPaper.project_id == download.project_id,
+                    ProjectPaper.pmid == paper_data.get("pmid")
+                ).first()
+                if not existing_link:
+                    session.add(ProjectPaper(
+                        project_id=download.project_id,
+                        pmid=paper_data.get("pmid")
+                    ))
+
+        session.commit()
+    finally:
+        session.close()
+
     return {
-        "requested": download.pmids,
-        "downloaded": [],
-        "failed": [],
-        "message": "論文ダウンロードはPhase 2で実装予定です"
+        "requested": len(download.papers),
+        "downloaded": result["downloaded"],
+        "failed": result["failed"]
     }
 
 
