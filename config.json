@@ -1,0 +1,18 @@
+{
+  "anthropic_api_key": "",
+  "telegram_bot_token": "",
+  "database_path": "data/paper_agent.db",
+  "papers_directory": "papers",
+  "outputs_directory": "outputs",
+  "default_citation_style": "Vancouver",
+  "default_language": "ja",
+  "max_projects": 5,
+  "max_conversation_history": 300,
+  "max_paper_pages": 30,
+  "llm_settings": {
+    "summarization_model": "claude-3-5-haiku-20241022",
+    "generation_model": "claude-sonnet-4-20250514",
+    "temperature": 0.7,
+    "max_tokens": 4096
+  }
+}

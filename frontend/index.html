@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paper Agent - 論文管理AIエージェント</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <h1>Paper Agent</h1>
+            <div class="header-controls">
+                <select id="project-selector">
+                    <option value="">プロジェクトを選択...</option>
+                </select>
+                <button id="new-project-btn" class="btn btn-primary">新規プロジェクト</button>
+                <button id="settings-btn" class="btn">設定</button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Sidebar -->
+            <nav class="sidebar">
+                <ul class="nav-tabs">
+                    <li class="nav-item active" data-tab="paper-search">
+                        <span class="icon">📚</span>
+                        論文検索
+                    </li>
+                    <li class="nav-item" data-tab="document-creation">
+                        <span class="icon">📝</span>
+                        文書作成
+                    </li>
+                    <li class="nav-item" data-tab="file-manager">
+                        <span class="icon">📁</span>
+                        ファイル管理
+                    </li>
+                </ul>
+            </nav>
+
+            <!-- Content Area -->
+            <main class="content-area">
+                <!-- Paper Search Tab -->
+                <div id="paper-search" class="tab-content active">
+                    <div class="chat-container">
+                        <div id="chat-messages" class="chat-messages">
+                            <div class="message assistant">
+                                <p>こんにちは！論文検索をお手伝いします。検索したいテーマを入力してください。</p>
+                            </div>
+                        </div>
+                        <div class="chat-input-container">
+                            <input type="text" id="chat-input" placeholder="例: 脳卒中のtDCS研究を探して" />
+                            <button id="send-btn" class="btn btn-primary">送信</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Document Creation Tab -->
+                <div id="document-creation" class="tab-content">
+                    <div class="chat-container">
+                        <div class="chat-messages">
+                            <div class="message assistant">
+                                <p>文書作成をお手伝いします。どのような文書を作成しますか？</p>
+                            </div>
+                        </div>
+                        <div class="chat-input-container">
+                            <input type="text" placeholder="例: レビュー論文を書いて" />
+                            <button class="btn btn-primary">送信</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- File Manager Tab -->
+                <div id="file-manager" class="tab-content">
+                    <div class="file-manager-container">
+                        <div class="folder-tree">
+                            <h3>フォルダ</h3>
+                            <ul id="folder-list">
+                                <li class="folder">📁 papers</li>
+                                <li class="folder">📁 outputs</li>
+                            </ul>
+                        </div>
+                        <div class="file-list">
+                            <h3>ファイル</h3>
+                            <div id="file-list-content">
+                                <p class="empty-message">フォルダを選択してください</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Status Bar -->
+        <footer class="status-bar">
+            <span id="status-text">準備完了</span>
+            <span id="token-usage">トークン使用量: 0</span>
+        </footer>
+    </div>
+
+    <!-- New Project Modal -->
+    <div id="new-project-modal" class="modal hidden">
+        <div class="modal-content">
+            <h2>新規プロジェクト</h2>
+            <form id="new-project-form">
+                <div class="form-group">
+                    <label for="project-name">プロジェクト名</label>
+                    <input type="text" id="project-name" required />
+                </div>
+                <div class="form-group">
+                    <label for="citation-style">引用スタイル</label>
+                    <select id="citation-style">
+                        <option value="Vancouver">Vancouver</option>
+                        <option value="APA">APA</option>
+                        <option value="Harvard">Harvard</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn" id="cancel-project-btn">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">作成</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>
