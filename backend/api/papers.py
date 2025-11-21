@@ -17,8 +17,8 @@ class PaperSearch(BaseModel):
     max_results: int = 50
     optimize_query: bool = True
     # Publication type filters
-    include_types: Optional[List[str]] = None  # review, systematic_review, meta_analysis, rct, clinical_trial, case_report, guideline, observational
-    exclude_types: Optional[List[str]] = None  # case_report, editorial, letter, comment, retracted
+    include_types: Optional[List[str]] = None  # review, systematic_review, meta_analysis, rct, clinical_trial, case_report, guideline, observational, editorial, letter, comment
+    exclude_types: Optional[List[str]] = None  # All above + retracted
     # Other filters
     free_fulltext_only: bool = False
     year_from: Optional[int] = None

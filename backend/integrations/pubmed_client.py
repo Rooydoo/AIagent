@@ -19,14 +19,25 @@ PUBLICATION_TYPES = {
     "case_report": "case reports[pt]",
     "guideline": "guideline[pt]",
     "observational": "observational study[pt]",
+    "editorial": "editorial[pt]",
+    "letter": "letter[pt]",
+    "comment": "comment[pt]",
 }
 
-EXCLUDE_TYPES = {
+# All types that can be excluded
+EXCLUDABLE_TYPES = {
     "case_report": "NOT case reports[pt]",
     "editorial": "NOT editorial[pt]",
     "letter": "NOT letter[pt]",
     "comment": "NOT comment[pt]",
     "retracted": "NOT retracted publication[pt]",
+    "review": "NOT review[pt]",
+    "systematic_review": "NOT systematic review[pt]",
+    "meta_analysis": "NOT meta-analysis[pt]",
+    "rct": "NOT randomized controlled trial[pt]",
+    "clinical_trial": "NOT clinical trial[pt]",
+    "guideline": "NOT guideline[pt]",
+    "observational": "NOT observational study[pt]",
 }
 
 
@@ -70,8 +81,8 @@ class PubMedClient:
         # Add publication type excludes
         if exclude_types:
             for t in exclude_types:
-                if t in EXCLUDE_TYPES:
-                    parts.append(EXCLUDE_TYPES[t])
+                if t in EXCLUDABLE_TYPES:
+                    parts.append(EXCLUDABLE_TYPES[t])
 
         # Free full text filter
         if free_fulltext_only:
