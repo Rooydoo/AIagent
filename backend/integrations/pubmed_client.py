@@ -9,6 +9,27 @@ PUBMED_FETCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 PMC_SEARCH_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 
 
+# Publication Type filters for PubMed
+PUBLICATION_TYPES = {
+    "review": "review[pt]",
+    "systematic_review": "systematic review[pt]",
+    "meta_analysis": "meta-analysis[pt]",
+    "rct": "randomized controlled trial[pt]",
+    "clinical_trial": "clinical trial[pt]",
+    "case_report": "case reports[pt]",
+    "guideline": "guideline[pt]",
+    "observational": "observational study[pt]",
+}
+
+EXCLUDE_TYPES = {
+    "case_report": "NOT case reports[pt]",
+    "editorial": "NOT editorial[pt]",
+    "letter": "NOT letter[pt]",
+    "comment": "NOT comment[pt]",
+    "retracted": "NOT retracted publication[pt]",
+}
+
+
 class PubMedClient:
     """Client for PubMed/PMC APIs."""
 
@@ -16,19 +37,86 @@ class PubMedClient:
         self.api_key = api_key
         self.client = httpx.AsyncClient(timeout=30.0)
 
-    async def search(self, query: str, max_results: int = 50) -> Dict:
+    def build_query(
+        self,
+        query: str,
+        include_types: Optional[List[str]] = None,
+        exclude_types: Optional[List[str]] = None,
+        free_fulltext_only: bool = False,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> str:
+        """Build PubMed query with filters.
+
+        Args:
+            query: Base search query
+            include_types: Publication types to include (review, systematic_review, rct, etc.)
+            exclude_types: Publication types to exclude (case_report, editorial, etc.)
+            free_fulltext_only: Only include free full text articles
+            year_from: Start year filter
+            year_to: End year filter
+
+        Returns:
+            Formatted query string
+        """
+        parts = [query]
+
+        # Add publication type includes (OR between them)
+        if include_types:
+            type_filters = [PUBLICATION_TYPES[t] for t in include_types if t in PUBLICATION_TYPES]
+            if type_filters:
+                parts.append(f"({' OR '.join(type_filters)})")
+
+        # Add publication type excludes
+        if exclude_types:
+            for t in exclude_types:
+                if t in EXCLUDE_TYPES:
+                    parts.append(EXCLUDE_TYPES[t])
+
+        # Free full text filter
+        if free_fulltext_only:
+            parts.append("free full text[filter]")
+
+        # Year range
+        if year_from or year_to:
+            start = year_from or 1900
+            end = year_to or 2099
+            parts.append(f"{start}:{end}[dp]")
+
+        return " AND ".join(parts)
+
+    async def search(
+        self,
+        query: str,
+        max_results: int = 50,
+        include_types: Optional[List[str]] = None,
+        exclude_types: Optional[List[str]] = None,
+        free_fulltext_only: bool = False,
+        year_from: Optional[int] = None,
+        year_to: Optional[int] = None,
+    ) -> Dict:
         """Search PubMed for articles.
 
         Args:
             query: Search query string
             max_results: Maximum number of results to return
+            include_types: Publication types to include
+            exclude_types: Publication types to exclude
+            free_fulltext_only: Only free full text
+            year_from: Start year
+            year_to: End year
 
         Returns:
             Dictionary with search results
         """
+        # Build query with filters
+        full_query = self.build_query(
+            query, include_types, exclude_types, free_fulltext_only, year_from, year_to
+        )
+
         params = {
             "db": "pubmed",
-            "term": query,
+            "term": full_query,
             "retmax": max_results,
             "retmode": "json",
             "sort": "relevance"

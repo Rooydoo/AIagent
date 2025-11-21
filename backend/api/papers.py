@@ -16,6 +16,13 @@ class PaperSearch(BaseModel):
     query: str
     max_results: int = 50
     optimize_query: bool = True
+    # Publication type filters
+    include_types: Optional[List[str]] = None  # review, systematic_review, meta_analysis, rct, clinical_trial, case_report, guideline, observational
+    exclude_types: Optional[List[str]] = None  # case_report, editorial, letter, comment, retracted
+    # Other filters
+    free_fulltext_only: bool = False
+    year_from: Optional[int] = None
+    year_to: Optional[int] = None
 
 
 class PaperDownload(BaseModel):
@@ -58,8 +65,16 @@ async def search_papers(search: PaperSearch):
             optimized_query = await optimize_query(search.query)
             query = optimized_query
 
-        # Search PubMed
-        search_result = await client.search(query, search.max_results)
+        # Search PubMed with filters
+        search_result = await client.search(
+            query,
+            search.max_results,
+            include_types=search.include_types,
+            exclude_types=search.exclude_types,
+            free_fulltext_only=search.free_fulltext_only,
+            year_from=search.year_from,
+            year_to=search.year_to,
+        )
 
         if "error" in search_result:
             return {
