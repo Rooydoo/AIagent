@@ -6,6 +6,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from ..database import get_session, Project
+from ..services.project_archive import archive_project, get_oldest_project
+from ..config import settings
 
 router = APIRouter()
 
@@ -39,13 +41,27 @@ async def create_project(project: ProjectCreate):
     """Create a new project."""
     session = get_session()
     try:
-        # Check project limit
+        # Check project limit and auto-archive if needed
         active_count = session.query(Project).filter(Project.is_active == True).count()
-        if active_count >= 5:
-            raise HTTPException(
-                status_code=400,
-                detail="最大プロジェクト数（5）に達しています。古いプロジェクトを削除してください。"
-            )
+        archived_project = None
+
+        if active_count >= settings.max_projects:
+            # Auto-archive oldest project
+            oldest_id = get_oldest_project()
+            if oldest_id:
+                archive_result = archive_project(oldest_id)
+                if archive_result["success"]:
+                    archived_project = archive_result
+                else:
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"古いプロジェクトのアーカイブに失敗しました: {archive_result.get('error')}"
+                    )
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="最大プロジェクト数に達していますが、アーカイブ可能なプロジェクトがありません。"
+                )
 
         new_project = Project(
             project_id=str(uuid.uuid4()),
@@ -58,6 +74,17 @@ async def create_project(project: ProjectCreate):
         session.add(new_project)
         session.commit()
         session.refresh(new_project)
+
+        response_data = ProjectResponse.model_validate(new_project)
+
+        # Add archive info if a project was archived
+        if archived_project:
+            return {
+                **response_data.model_dump(),
+                "archived_project": archived_project["project_name"],
+                "archive_message": f"古いプロジェクト '{archived_project['project_name']}' を自動アーカイブしました"
+            }
+
         return new_project
     finally:
         session.close()

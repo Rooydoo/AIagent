@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 
 from .database import init_database
 from .api import projects, chat, papers, documents, files, stats
+from .services.telegram_bot import start_telegram_bot, stop_telegram_bot
 
 
 @asynccontextmanager
@@ -12,9 +13,16 @@ async def lifespan(app: FastAPI):
     """Application lifespan events."""
     # Startup
     init_database()
+    # Start Telegram bot (if configured)
+    try:
+        await start_telegram_bot()
+    except Exception as e:
+        print(f"⚠️  Failed to start Telegram bot: {e}")
+
     yield
+
     # Shutdown
-    pass
+    await stop_telegram_bot()
 
 
 app = FastAPI(
